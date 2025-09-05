@@ -2,10 +2,10 @@ package com.example.seeformev2
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.Button
 import androidx.compose.material.Text
@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-
 @Composable
 fun SeeForMeApp(
     onImageCaptured: (Bitmap) -> Unit,
@@ -53,9 +52,7 @@ fun CameraPreview(
 ) {
     val context = LocalContext.current
     AndroidView(
-        factory = { ctx ->
-            androidx.camera.view.PreviewView(ctx)
-        },
+        factory = { ctx -> PreviewView(ctx) },
         modifier = modifier,
         update = { previewView ->
             val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
@@ -81,34 +78,28 @@ fun CameraPreview(
                     onImageCaptureReady(imageCapture)
 
                     // Optionally: automatically capture one image when the preview starts.
-                    // Uncomment the following lines if you want auto-capture.
-                     imageCapture.takePicture(
-                         ContextCompat.getMainExecutor(context),
-                         object : ImageCapture.OnImageCapturedCallback() {
-                             override fun onCaptureSuccess(imageProxy: ImageProxy) {
-                                 val bitmap = imageProxy.toBitmap()
-                                 onImageCaptured(bitmap)
-                                 imageProxy.close()
-                             }
-                             override fun onError(exception: ImageCaptureException) {
-                                 Log.e("CameraPreview", "Auto-capture failed: ${exception.message}", exception)
-                             }
-                         }
-                     )
+                    imageCapture.takePicture(
+                        ContextCompat.getMainExecutor(context),
+                        object : ImageCapture.OnImageCapturedCallback() {
+                            override fun onCaptureSuccess(imageProxy: ImageProxy) {
+                                val bitmap = imageProxy.toBitmap()
+                                if (bitmap != null) { // ✅ Added null check here
+                                    onImageCaptured(bitmap)
+                                } else {
+                                    Log.e("CameraPreview", "Failed to convert image to bitmap")
+                                }
+                                imageProxy.close()
+                            }
+
+                            override fun onError(exception: ImageCaptureException) {
+                                Log.e("CameraPreview", "Auto-capture failed: ${exception.message}", exception)
+                            }
+                        }
+                    )
                 } catch (exc: Exception) {
                     Log.e("CameraPreview", "Use case binding failed", exc)
                 }
             }, ContextCompat.getMainExecutor(context))
         }
     )
-}
-
-/**
- * Extension function to convert an ImageProxy to a Bitmap.
- */
-fun ImageProxy.toBitmap(): Bitmap {
-    val buffer = planes[0].buffer
-    val bytes = ByteArray(buffer.remaining())
-    buffer.get(bytes)
-    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
 }
